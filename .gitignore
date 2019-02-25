@@ -1,0 +1,5 @@
+.DS_STORE
+credentials.json
+recipients.json
+data.json
+node_modules
