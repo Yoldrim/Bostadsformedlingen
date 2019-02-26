@@ -4,7 +4,7 @@
   "description": "",
   "main": "brf.js",
   "scripts": {
-    "start": "node brf.js > brf.log"
+    "start": "node brf.js >> brf.log"
   },
   "keywords": [],
   "author": "",

@@ -30,7 +30,7 @@ fs.readFile('./data.json', 'utf8', (err, data) => {
   if (err) {
     apartments = []
     ping(false);
-    return logger(err);
+    return logger(`data.json not found, creating it..`);
   }
 
   apartments = JSON.parse(data);
@@ -87,16 +87,19 @@ function save() {
 
 function trySendQueuedMail(){
   if(queuedMails.length > 0) {
-    transporter.sendMail(queuedMails[0], (error, info) => {
+    let mail = queuedMails.shift();
+    transporter.sendMail(mail, (error, info) => {
       if (error) {
         logger(error);
+        queuedMails.push(mail);
       } else {
         logger('Email sent: ' + info.response);
       }
     });
-    queuedMails.shift();
   }
 }
+
+logger(`=======> Starting script <=======`);
 
 setInterval(ping, 60000);
 setInterval(trySendQueuedMail, 10000);
