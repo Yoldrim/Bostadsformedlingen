@@ -10,7 +10,7 @@ let apartments;
 let queuedMails = [];
 
 function logger(log) {
-  console.log(`${getCurrentTime()} ${log}`)
+  console.log(`${getCurrentTime()} ${log}`);
 }
 
 function addZeroBefore(n) {
@@ -22,8 +22,10 @@ function getCurrentTime(){
   let h = addZeroBefore(now.getHours());
   let m = addZeroBefore(now.getMinutes());
   let s = addZeroBefore(now.getSeconds());
+  let D = addZeroBefore(now.getDate());
+  let M = addZeroBefore(now.getMonth() + 1);
 
-  return `[${h}:${m}:${s}]`;
+  return `[${h}:${m}:${s} - ${D}/${M}]`;
 }
 
 fs.readFile('./data.json', 'utf8', (err, data) => {
@@ -44,16 +46,16 @@ let transporter = nodemailer.createTransport({
   }
 });
 
-function mailOptions(text) {
+function mailOptions(subject, text) {
   return {
     from: credentials.user,
     to: recipients.map((recipient) => recipient.email += ','),
-    subject: 'Ny hyresrätt',
+    subject: subject,
     html: text
   }
 };
 
-function ping(sendMail = true) {
+function pingHyres(sendMail = true) {
   ax.get("https://bostad.stockholm.se/Lista/AllaAnnonser")
     .then((resp) => {
       let data = resp.data;
@@ -62,14 +64,14 @@ function ping(sendMail = true) {
         if(!apartments.find(x => x.AnnonsId === d.AnnonsId)){
           dDidChange = true;
           apartments.push(d);
-          logger(`Added new apartment with ID: ${d.AnnonsId} to array`);
+          logger(`Found new rental. ID: ${d.AnnonsId}`);
           if(sendMail){
-            queuedMails.push(mailOptions(`<a href="https://bostad.stockholm.se${d.Url}">Ny Lägenhet i ${d.Stadsdel}</a> \n <p>Våning: ${d.Vaning} Rum: ${d.AntalRum} m2: ${d.Yta} Hyra: ${d.Hyra} Bostadssnabben: ${d.BostadsSnabben ? 'Ja' : 'Nej'} Ungdom: ${d.Ungdom ? 'Ja' : 'Nej'}</p>`));
+            queuedMails.push(`<a href="https://bostad.stockholm.se${d.Url}">Ny hyresrätt i ${d.Stadsdel}</a> \n <p>Våning: ${d.Vaning} Rum: ${d.AntalRum} m2: ${d.Yta} Hyra: ${d.Hyra} Bostadssnabben: ${d.BostadsSnabben ? 'Ja' : 'Nej'} Ungdom: ${d.Ungdom ? 'Ja' : 'Nej'} Student: ${d.Student ? 'Ja' : 'Nej'}</p>`);
           }
         }
       }
 
-      logger(`${dDidChange ? 'New results were found'.green : 'No new results'.red}`)
+      !dDidChange && logger('No new results'.red);
       save();
     })
     .catch((err) => {
@@ -86,9 +88,9 @@ function save() {
 }
 
 function trySendQueuedMail(){
-  if(queuedMails.length > 0) {
+  if(queuedMails.length === 1) {
     let mail = queuedMails.shift();
-    transporter.sendMail(mail, (error, info) => {
+    transporter.sendMail(mailOptions(`Ny hyresrätt`, mail), (error, info) => {
       if (error) {
         logger(error);
         queuedMails.push(mail);
@@ -96,10 +98,20 @@ function trySendQueuedMail(){
         logger('Email sent: ' + info.response);
       }
     });
+  }else if(queuedMails.length > 1){
+    let mails = queuedMails.join('\n');
+    transporter.sendMail(mailOptions(`Nya hyresrätter`, mails), (error, info) => {
+      if (error) {
+        logger(error);
+      } else {
+        logger('Email sent: ' + info.response);
+        queuedMails = [];
+      }
+    });
   }
 }
 
 logger(`=======> Starting script <=======`);
 
-setInterval(ping, 60000);
+setInterval(pingHyres, 60000);
 setInterval(trySendQueuedMail, 10000);
