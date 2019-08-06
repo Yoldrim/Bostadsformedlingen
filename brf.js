@@ -30,8 +30,8 @@ function getCurrentTime(){
 
 fs.readFile('./data.json', 'utf8', (err, data) => {
   if (err) {
-    apartments = []
-    ping(false);
+    apartments = [];
+    pingHyres(false);
     return logger(`data.json not found, creating it..`);
   }
 
@@ -40,6 +40,7 @@ fs.readFile('./data.json', 'utf8', (err, data) => {
 
 let transporter = nodemailer.createTransport({
   service: 'gmail',
+  secure: 'true',
   auth: {
     user: credentials.user,
     pass: credentials.pass
@@ -53,7 +54,7 @@ function mailOptions(subject, text) {
     subject: subject,
     html: text
   }
-};
+}
 
 function pingHyres(sendMail = true) {
   ax.get("https://bostad.stockholm.se/Lista/AllaAnnonser")
@@ -61,12 +62,25 @@ function pingHyres(sendMail = true) {
       let data = resp.data;
       let dDidChange = false;
       for(d of data) {
-        if(!apartments.find(x => x.AnnonsId === d.AnnonsId)){
-          dDidChange = true;
-          apartments.push(d);
-          logger(`Found new rental. ID: ${d.AnnonsId}`);
-          if(sendMail){
-            queuedMails.push(`<a href="https://bostad.stockholm.se${d.Url}">Ny hyresrätt i ${d.Stadsdel}</a> \n <p>Våning: ${d.Vaning} Rum: ${d.AntalRum} m2: ${d.Yta} Hyra: ${d.Hyra} Bostadssnabben: ${d.BostadsSnabben ? 'Ja' : 'Nej'} Ungdom: ${d.Ungdom ? 'Ja' : 'Nej'} Student: ${d.Student ? 'Ja' : 'Nej'}</p>`);
+        if (d.Student || d.Ungdom || d.BostadsSnabben) {
+          if (d.BostadsSnabben) {
+            transporter.sendMail(mailOptions('BOSTADSSNABBEN!1!', `<a href="https://bostad.stockholm.se${d.Url}">Ny hyresrätt i ${d.Stadsdel}</a> \n <p>Våning: ${d.Vaning} Rum: ${d.AntalRum} m2: ${d.Yta} Hyra: ${d.Hyra} Bostadssnabben: ${d.BostadsSnabben ? 'Ja' : 'Nej'} Ungdom: ${d.Ungdom ? 'Ja' : 'Nej'} Student: ${d.Student ? 'Ja' : 'Nej'}</p>`), (error, info) => {
+              if (error) {
+                logger(error);
+                queuedMails.push(mail);
+              } else {
+                logger('Email sent: ' + info.response);
+              }
+            });
+          } else {
+            if (!apartments.find(x => x.AnnonsId === d.AnnonsId)) {
+              dDidChange = true;
+              apartments.push(d);
+              logger(`Found new rental. ID: ${d.AnnonsId}`);
+              if (sendMail) {
+                queuedMails.push(`<a href="https://bostad.stockholm.se${d.Url}">Ny hyresrätt i ${d.Stadsdel}</a> \n <p>Våning: ${d.Vaning} Rum: ${d.AntalRum} m2: ${d.Yta} Hyra: ${d.Hyra} Bostadssnabben: ${d.BostadsSnabben ? 'Ja' : 'Nej'} Ungdom: ${d.Ungdom ? 'Ja' : 'Nej'} Student: ${d.Student ? 'Ja' : 'Nej'}</p>`);
+              }
+            }
           }
         }
       }
@@ -113,5 +127,5 @@ function trySendQueuedMail(){
 
 logger(`=======> Starting script <=======`);
 
-setInterval(pingHyres, 60000);
-setInterval(trySendQueuedMail, 10000);
+setInterval(pingHyres, 15000);
+setInterval(trySendQueuedMail, 5000);
